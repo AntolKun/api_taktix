@@ -35,6 +35,7 @@ model Soal {
   category       Category      @relation(fields: [category_id], references: [id])
   questions      Question[]    // Relasi ke tabel Question
   user_answers   UserAnswer[]  // Relasi ke tabel UserAnswer
+  histories History[] 
 }
 
 model ExamCategory {
@@ -92,5 +93,19 @@ model UserAnswer {
   soal       Soal      @relation(fields: [soal_id], references: [id])
   question   Question  @relation(fields: [question_id], references: [id])
 }
+
+model History {
+  id            Int      @id @default(autoincrement())
+  user_id       Int      // ID user yang mengerjakan soal
+  soal_id       Int      // ID soal yang dikerjakan
+  score         Int      // Skor yang diperoleh pengguna
+  answers       Json     // Jawaban yang diberikan oleh user
+  created_at    DateTime @default(now()) // Waktu saat jawaban disimpan
+  updated_at    DateTime @updatedAt       // Waktu saat data terakhir diperbarui
+
+  soal          Soal     @relation(fields: [soal_id], references: [id]) // Relasi ke model Soal
+}
+
+
 
 
