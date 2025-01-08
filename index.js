@@ -8,7 +8,55 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = 3500;
 
+// const verifyToken = (req, res, next) => {
+//   const token = req.header("Authorization")?.replace("Bearer ", ""); // Mengambil token dari header Authorization
+
+//   if (!token) {
+//     return res.status(401).json({ message: "No token provided" });
+//   }
+
+//   try {
+//     const decoded = jwt.decode(token); // Decode token untuk mendapatkan informasi
+//     req.user_id = decoded.user.id; // Asumsi user_id ada dalam token
+//     next();
+//   } catch (error) {
+//     return res.status(400).json({ message: "Invalid token" });
+//   }
+// };
+
 // Middleware
+
+const verifyToken = (req, res, next) => {
+  const token = req.headers["authorization"]?.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ error: "Token missing or invalid" });
+  }
+
+  jwt.verify(token, "your_jwt_secret", (err, decoded) => {
+    if (err) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    req.user = decoded.user; // Simpan informasi user ke request
+    next();
+  });
+};
+
+const authenticateToken = (req, res, next) => {
+  const token = req.headers["authorization"]?.split(" ")[1];
+
+  if (!token) {
+    return res.status(403).json({ message: "Token not found" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Invalid token" });
+    }
+    req.user = decoded.user; // Attach user info to request object
+    next();
+  });
+};
+
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -240,6 +288,80 @@ app.post("/api/answers", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// app.get("/api/riwayat/:soal_id", verifyToken, async (req, res) => {
+//   const { soal_id } = req.params;
+//   const { user_id } = req;
+
+//   try {
+//     // Cek apakah riwayat dengan soal_id dan user_id tersebut ada
+//     const history = await History.findOne({
+//       where: { user_id: user_id, soal_id: soal_id },
+//     });
+
+//     if (!history) {
+//       return res
+//         .status(404)
+//         .json({ message: "History not found for this user and soal" });
+//     }
+
+//     // Mengirimkan riwayat jika ditemukan
+//     return res.status(200).json({
+//       status: "success",
+//       data: history,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({ message: "Server error" });
+//   }
+// });
+
+// app.get("/api/history", verifyToken, (req, res) => {
+//   const userId = req.user.id; // Dapatkan userId dari token
+//   const soalId = req.query.soalId;
+
+//   // Cari riwayat berdasarkan userId dan soalId
+//   const history = History.filter(
+//     (h) => h.userId === userId && h.soalId === parseInt(soalId)
+//   );
+
+//   if (history.length === 0) {
+//     return res.status(404).json({ message: "History not found" });
+//   }
+
+//   res.json(history);
+// });
+
+
+app.get("/api/historya/:soalId", async (req, res) => {
+  // const userId = req.user.id; // Dapatkan userId dari token
+  const { soalId } = req.params; // Ambil soalId dari parameter URL
+
+  try {
+    // Cari riwayat berdasarkan userId dan soalId
+    const history = await prisma.history.findMany({
+      where: {
+        // user_id: userId, // Menggunakan user_id dari token
+        soal_id: parseInt(soalId), // Menggunakan soal_id dari parameter URL
+      },
+      include:{
+        soal: true
+      }
+    });
+
+    if (history.length === 0) {
+      return res.status(404).json({ message: "History not found" });
+    }
+
+    // Mengirimkan riwayat jika ditemukan
+    res.json(history);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
