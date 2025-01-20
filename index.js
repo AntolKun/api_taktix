@@ -289,48 +289,48 @@ app.post("/api/answers", async (req, res) => {
   }
 });
 
-// app.get("/api/riwayat/:soal_id", verifyToken, async (req, res) => {
-//   const { soal_id } = req.params;
-//   const { user_id } = req;
+app.get("/api/riwayat/:soal_id", verifyToken, async (req, res) => {
+  const { soal_id } = req.params;
+  const { user_id } = req;
 
-//   try {
-//     // Cek apakah riwayat dengan soal_id dan user_id tersebut ada
-//     const history = await History.findOne({
-//       where: { user_id: user_id, soal_id: soal_id },
-//     });
+  try {
+    // Cek apakah riwayat dengan soal_id dan user_id tersebut ada
+    const history = await History.findOne({
+      where: { user_id: user_id, soal_id: soal_id },
+    });
 
-//     if (!history) {
-//       return res
-//         .status(404)
-//         .json({ message: "History not found for this user and soal" });
-//     }
+    if (!history) {
+      return res
+        .status(404)
+        .json({ message: "History not found for this user and soal" });
+    }
 
-//     // Mengirimkan riwayat jika ditemukan
-//     return res.status(200).json({
-//       status: "success",
-//       data: history,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     return res.status(500).json({ message: "Server error" });
-//   }
-// });
+    // Mengirimkan riwayat jika ditemukan
+    return res.status(200).json({
+      status: "success",
+      data: history,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
 
-// app.get("/api/history", verifyToken, (req, res) => {
-//   const userId = req.user.id; // Dapatkan userId dari token
-//   const soalId = req.query.soalId;
+app.get("/api/history", verifyToken, (req, res) => {
+  const userId = req.user.id; // Dapatkan userId dari token
+  const soalId = req.query.soalId;
 
-//   // Cari riwayat berdasarkan userId dan soalId
-//   const history = History.filter(
-//     (h) => h.userId === userId && h.soalId === parseInt(soalId)
-//   );
+  // Cari riwayat berdasarkan userId dan soalId
+  const history = History.filter(
+    (h) => h.userId === userId && h.soalId === parseInt(soalId)
+  );
 
-//   if (history.length === 0) {
-//     return res.status(404).json({ message: "History not found" });
-//   }
+  if (history.length === 0) {
+    return res.status(404).json({ message: "History not found" });
+  }
 
-//   res.json(history);
-// });
+  res.json(history);
+});
 
 
 app.get("/api/historya/:soalId", async (req, res) => {
@@ -360,7 +360,6 @@ app.get("/api/historya/:soalId", async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 });
-
 
 
 app.listen(PORT, () => {
