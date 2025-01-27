@@ -3,6 +3,7 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const { PrismaClient } = require("@prisma/client");
 const validateAnswers = require("./middleware/validateAnswers");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 const prisma = new PrismaClient();
@@ -36,7 +37,7 @@ const verifyToken = (req, res, next) => {
     if (err) {
       return res.status(401).json({ error: "Invalid token" });
     }
-    req.user = decoded.user; // Simpan informasi user ke request
+    req.user = decoded.user; // Simpan informasi user ke request jika diperlukan nanti
     next();
   });
 };
@@ -332,7 +333,6 @@ app.get("/api/history", verifyToken, (req, res) => {
   res.json(history);
 });
 
-
 app.get("/api/historya/:soalId", async (req, res) => {
   // const userId = req.user.id; // Dapatkan userId dari token
   const { soalId } = req.params; // Ambil soalId dari parameter URL
@@ -361,6 +361,154 @@ app.get("/api/historya/:soalId", async (req, res) => {
   }
 });
 
+// Endpoint untuk mendapatkan kunci jawaban
+app.get("/api/soal/kunci_jawaban/:id", async (req, res) => {
+  try {
+    const soalId = parseInt(req.params.id, 10);
+
+    const soal = await prisma.soal.findUnique({
+      where: { id: soalId },
+      include: {
+        questions: {
+          include: {
+            options: true,
+          },
+        },
+      },
+    });
+
+    if (!soal) {
+      return res.status(404).json({ message: "Soal not found" });
+    }
+
+    const answers = soal.questions.map((question) => ({
+      id: question.id,
+      question: question.question,
+      correct: question.correct,
+    }));
+
+    res.json(answers);
+  } catch (error) {
+    console.error("Error fetching answer keys:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.post("/api/soal/rating/:id", async (req, res) => {
+  const { id } = req.params; // ID soal
+  const { rating, feedback } = req.body; // Rating dan feedback dari frontend
+
+  try {
+    // Cek apakah soal ada di database
+    const soalExists = await prisma.soal.findUnique({
+      where: { id: parseInt(id) }, // Mengambil soal berdasarkan ID
+    });
+
+    if (!soalExists) {
+      return res.status(404).json({ error: "Soal not found" });
+    }
+
+    // Simpan feedback tanpa user_id
+    const newRating = await prisma.feedback.create({
+      data: {
+        soal_id: parseInt(id), // ID soal dari URL
+        rating,
+        feedback,
+      },
+    });
+
+    res
+      .status(200)
+      .json({ message: "Rating submitted successfully", newRating });
+  } catch (error) {
+    console.error("Error saving rating:", error);
+    res.status(500).json({ error: "Failed to save rating" });
+  }
+});
+
+
+
+
+app.post("/submit-rating", async (req, res) => {
+  const { soal_id, user_id, rating, feedback } = req.body;
+
+  // Validasi data yang masuk
+  if (!soal_id || !user_id || !rating) {
+    return res
+      .status(400)
+      .json({ error: "Missing soal_id, user_id, or rating" });
+  }
+
+  try {
+    // Simpan rating dan feedback ke database
+    const newFeedback = await prisma.feedback.create({
+      data: {
+        soal_id,
+        user_id,
+        rating,
+        feedback,
+      },
+    });
+
+    res
+      .status(200)
+      .json({
+        message: "Rating and feedback submitted successfully",
+        newFeedback,
+      });
+  } catch (error) {
+    console.error("Error submitting rating:", error);
+    res.status(500).json({ error: "Failed to submit rating" });
+  }
+});
+
+app.get("/feedback/:soal_id", async (req, res) => {
+  const { soal_id } = req.params;
+
+  try {
+    const feedbacks = await prisma.feedback.findMany({
+      where: { soal_id: parseInt(soal_id) },
+    });
+
+    res.status(200).json(feedbacks);
+  } catch (error) {
+    console.error("Error fetching feedback:", error);
+    res.status(500).json({ error: "Failed to fetch feedback" });
+  }
+});
+
+app.post("/rating/:id", verifyToken, async (req, res) => {
+  const { id } = req.params;
+  const { rating, feedback } = req.body;
+  const userId = req.user.id; // Ambil dari token yang sudah diverifikasi
+
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "Rating must be between 1 and 5" });
+  }
+
+  console.log("ID Soal:", id);
+
+  try {
+    const newRating = await prisma.feedback.create({
+      data: {
+        soal_id: parseInt(id),
+        user_id: userId,
+        rating,
+        feedback,
+      },
+    });
+    console.log("Data diterima oleh backend:", { rating, feedback, userId });
+
+    res.status(200).json({
+      message: "Rating submitted successfully",
+      data: newRating,
+    });
+  } catch (error) {
+    console.log("Data diterima oleh backend:", { rating, feedback, userId });
+    console.error("Error saving rating:", error);
+    res.status(500).json({ error: "Failed to save rating" });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

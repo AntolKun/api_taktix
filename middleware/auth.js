@@ -1,19 +1,18 @@
 const jwt = require("jsonwebtoken");
 
 const verifyToken = (req, res, next) => {
-  const token = req.header("Authorization");
-
+  const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) {
-    return res.status(401).json({ error: "No token provided" });
+    return res.status(401).json({ error: "Token missing or invalid" });
   }
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user_id = decoded.user.id; // Simpan user_id di request untuk digunakan di route
+  jwt.verify(token, "your_jwt_secret", (err, decoded) => {
+    if (err) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    req.user = decoded.user; // Simpan informasi user ke request
     next();
-  } catch (error) {
-    return res.status(400).json({ error: "Invalid token" });
-  }
+  });
 };
 
 module.exports = verifyToken;
