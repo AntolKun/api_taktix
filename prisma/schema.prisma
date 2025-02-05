@@ -134,6 +134,7 @@ model Program {
   // Relasi ke AgendaProgram
   agendas AgendaProgram[]
   programsoals ProgramSoal[]
+  materi        Materi[] // Relasi dengan Material 
 }
 
 model AgendaProgram {
@@ -226,6 +227,14 @@ model ProgramFeedback {
   feedback  String
   soal      ProgramSoal    @relation(fields: [soal_id], references: [id])
   soal_id   Int
+}
+
+model Materi {
+  id          Int    @id @default(autoincrement())
+  programId   String
+  title       String
+  youtubeLink String
+  Program     Program @relation(fields: [programId], references: [id])
 }
 
 

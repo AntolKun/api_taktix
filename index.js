@@ -821,6 +821,23 @@ app.get("/programs/soal/kunci_jawaban/:id", async (req, res) => {
   }
 });
 
+app.get("/materi/:programId", async (req, res) => {
+  try {
+    const { programId } = req.params;
+
+    const materi = await prisma.materi.findMany({
+      where: { programId },
+    });
+
+    console.log("Materi ditemukan:", materi); // Cek apakah data ditemukan
+    res.json({ success: true, data: materi });
+  } catch (error) {
+    console.error("Error fetching materi:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
