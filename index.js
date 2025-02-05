@@ -397,17 +397,14 @@ app.get("/api/soal/kunci_jawaban/:id", async (req, res) => {
 app.post("/api/soal/rating/:id", async (req, res) => {
   const { id } = req.params; // ID soal
   const { rating, feedback } = req.body; // Rating dan feedback dari frontend
-
   try {
     // Cek apakah soal ada di database
     const soalExists = await prisma.soal.findUnique({
       where: { id: parseInt(id) }, // Mengambil soal berdasarkan ID
     });
-
     if (!soalExists) {
       return res.status(404).json({ error: "Soal not found" });
     }
-
     // Simpan feedback tanpa user_id
     const newRating = await prisma.feedback.create({
       data: {
@@ -425,9 +422,6 @@ app.post("/api/soal/rating/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to save rating" });
   }
 });
-
-
-
 
 app.post("/submit-rating", async (req, res) => {
   const { soal_id, user_id, rating, feedback } = req.body;
@@ -507,6 +501,323 @@ app.post("/rating/:id", verifyToken, async (req, res) => {
     console.log("Data diterima oleh backend:", { rating, feedback, userId });
     console.error("Error saving rating:", error);
     res.status(500).json({ error: "Failed to save rating" });
+  }
+});
+
+app.get("/programs", async (req, res) => {
+  const page = Number(req.query.page) || 1;
+  const pageSize = Number(req.query.page_size) || 10;
+  const skip = (page - 1) * pageSize;
+
+  const total = await prisma.program.count();
+  const programs = await prisma.program.findMany({
+    skip,
+    take: pageSize,
+  });
+
+  res.json({
+    status: 200,
+    message: "Berhasil mendapatkan list program",
+    errors: null,
+    data: {
+      page,
+      page_size: pageSize,
+      total,
+      total_pages: Math.ceil(total / pageSize),
+      programs,
+    },
+  });
+});
+
+app.get("/programs/:id", async (req, res) => {
+  const { id } = req.params;
+  const program = await prisma.program.findUnique({
+    where: { id },
+  });
+
+  if (!program) {
+    return res.status(404).json({
+      status: 404,
+      message: "Program tidak ditemukan",
+      errors: null,
+      data: null,
+    });
+  }
+
+  res.json({
+    status: 200,
+    message: "Berhasil mendapatkan data program",
+    errors: null,
+    data: program,
+  });
+});
+
+app.get("/programs/:program_id/agenda", async (req, res) => {
+  try {
+    const { program_id } = req.params;
+
+    const agendas = await prisma.agendaProgram.findMany({
+      where: { program_id },
+      orderBy: { start_date: "asc" },
+    });
+
+    res.json({
+      status: 200,
+      message: "Berhasil mendapatkan agenda program",
+      errors: null,
+      data: agendas,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ status: 500, message: "Server Error", errors: error });
+  }
+});
+
+app.get("/programs/tryout/:program_id", async (req, res) => {
+  try {
+    const { program_id } = req.params;
+
+    const soalData = await prisma.programSoal.findMany({
+      where: { program_id },
+    });
+
+    // Get total rows for pagination
+    // const totalRows = await prisma.programSoal.count({ where: filters });
+    // const totalPage = Math.ceil(totalRows / take);
+
+    res.json({
+      data: soalData,
+      // pagination: {
+      //   total_rows: totalRows,
+      //   total_perpage: take,
+      //   total_page: totalPage,
+      //   current_page: parseInt(page),
+      //   next_page: page < totalPage ? parseInt(page) + 1 : null,
+      //   previous_page: page > 1 ? parseInt(page) - 1 : null,
+      // },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.get("/programs/tryout/detail/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    // const { program_id } = req.params;
+
+    // Fetch soal by ID
+    const soal = await prisma.programSoal.findUnique({
+      where: { id: parseInt(id) },
+      // include: {
+      //   exam_category: true,
+      //   category: true,
+      // },
+    });
+
+    if (!soal) {
+      return res.status(404).json({ error: "Soal not found" });
+    }
+
+    res.json(soal);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.get("/programs/soali/:soal_id", async (req, res) => {
+  const { soal_id } = req.params;
+
+  try {
+    const soal = await prisma.programSoal.findUnique({
+      where: { id: parseInt(soal_id) },
+      include: {
+        // exam_category: true,
+        // category: true,
+        questions: {
+          include: { options: true },
+        },
+      },
+    });
+
+    if (!soal) {
+      return res.status(404).json({ error: "Soal not found" });
+    }
+
+    res.status(200).json(soal);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch soal" });
+  }
+});
+
+app.post("/programs/answers", async (req, res) => {
+  const { user_id, soal_id, answers } = req.body;
+
+  // Validasi request body
+  if (!user_id || !soal_id || !Array.isArray(answers)) {
+    return res.status(400).json({
+      error:
+        "Invalid request. Ensure user_id, soal_id, and answers are provided.",
+    });
+  }
+
+  const soalId = parseInt(soal_id);
+  if (isNaN(soalId)) {
+    return res.status(400).json({ error: "Invalid soal_id" });
+  }
+
+  try {
+    // Ambil pertanyaan berdasarkan soal_id
+    const questions = await prisma.programQuestion.findMany({
+      where: { soal_id: soalId },
+    });
+
+    if (!questions.length) {
+      return res
+        .status(404)
+        .json({ error: "No questions found for this soal_id" });
+    }
+
+    // Proses jawaban dan hitung skor
+    const userAnswersPromises = questions.map(async (question) => {
+      const userAnswer = answers.find((a) => a.question_id === question.id);
+      if (!userAnswer) return 0;
+
+      const isCorrect = userAnswer.chosen === question.correct;
+
+      return isCorrect ? 100 / questions.length : 0;
+    });
+
+    const scores = await Promise.all(userAnswersPromises);
+    const totalScore = scores.reduce((acc, curr) => acc + curr, 0);
+
+    // Simpan jawaban ke tabel History
+    await prisma.programHistory.create({
+      data: {
+        user_id,
+        soal_id: soalId,
+        score: Math.round(totalScore), // Skor total
+        answers: JSON.stringify(answers), // Simpan jawaban dalam format JSON
+      },
+    });
+
+    // Kirim respons
+    res.status(200).json({
+      message: "Answers submitted",
+      score: Math.round(totalScore),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/programs/historya/:soalId", async (req, res) => {
+  // const userId = req.user.id; // Dapatkan userId dari token
+  const { soalId } = req.params; // Ambil soalId dari parameter URL
+
+  try {
+    // Cari riwayat berdasarkan userId dan soalId
+    const history = await prisma.programHistory.findMany({
+      where: {
+        // user_id: userId, // Menggunakan user_id dari token
+        soal_id: parseInt(soalId), // Menggunakan soal_id dari parameter URL
+      },
+      include: {
+        soal: true,
+      },
+    });
+
+    if (history.length === 0) {
+      return res.status(404).json({ message: "History not found" });
+    }
+
+    // Mengirimkan riwayat jika ditemukan
+    res.json(history);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// app.get("/programs/soal/kunci_jawaban/:id", async (req, res) => {
+//   try {
+//     const soalId = parseInt(req.params.id, 10);
+
+//     const soal = await prisma.programSoal.findUnique({
+//       where: { id: soalId },
+//       include: {
+//         programQuestions: {
+//           // Menggunakan relasi yang benar
+//           include: {
+//             options: true,
+//           },
+//         },
+//       },
+//     });
+
+//     if (!soal) {
+//       return res.status(404).json({ message: "Soal not found" });
+//     }
+
+//     const answers = soal.programQuestions.map((question) => ({
+//       // Pastikan menggunakan `programQuestions`
+//       id: question.id,
+//       question: question.question,
+//       correct: question.correct,
+//     }));
+
+//     res.json(answers);
+//   } catch (error) {
+//     console.error("Error fetching answer keys:", error);
+//     res.status(500).json({ message: "Internal server error" });
+//   }
+// });
+
+app.get("/programs/soal/kunci_jawaban/:id", async (req, res) => {
+  try {
+    const soalId = parseInt(req.params.id, 10);
+
+    if (isNaN(soalId)) {
+      return res.status(400).json({ message: "Invalid soal ID" });
+    }
+
+    // Ambil data soal berdasarkan ID
+    const soal = await prisma.programSoal.findUnique({
+      where: { id: soalId },
+      include: {
+        questions: {
+          include: {
+            options: true, // Ambil juga pilihan jawaban dari tiap soal
+          },
+        },
+      },
+    });
+
+    // Jika soal tidak ditemukan
+    if (!soal) {
+      return res.status(404).json({ message: "Soal not found" });
+    }
+
+    // Susun data kunci jawaban
+    const answers = soal.questions.map((question) => ({
+      id: question.id,
+      question: question.question,
+      correct: question.correct, // Jawaban benar
+      options: question.options.map((opt) => ({
+        label: opt.label,
+        content: opt.content,
+      })),
+    }));
+
+    res.json({ soalId: soal.id, title: soal.title, answers });
+  } catch (error) {
+    console.error("Error fetching answer keys:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
