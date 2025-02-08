@@ -837,6 +837,34 @@ app.get("/materi/:programId", async (req, res) => {
   }
 });
 
+app.get("/api/historyall", async (req, res) => {
+  try {
+    // Ambil semua riwayat dengan score di bawah 50
+    const history = await prisma.history.findMany({
+      where: {
+        score: {
+          lt: 50, // Hanya ambil yang skornya di bawah 50
+        },
+      },
+      include: {
+        soal: true, // Termasuk data soal terkait
+      },
+    });
+
+    if (history.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Tidak ada riwayat dengan skor di bawah 50" });
+    }
+
+    res.json(history);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
